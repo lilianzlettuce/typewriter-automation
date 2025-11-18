@@ -7,7 +7,7 @@ struct KeyMapEntry {
 };
 
 // Array that maps char to its corresponding key index on typewriter
-int charToKeyMap[90];
+int charToKeyMap[95];
 
 // Initialize the above key map
 // Use ascii value for each char as its index in map
@@ -60,7 +60,7 @@ void initKeyMap() {
 
   charToKeyMap['O'] = 33; // 33
   charToKeyMap['L'] = 34; // 34
-  charToKeyMap[')'] = 35; // 35
+  charToKeyMap[')'] = 35; // 35 // center end
   charToKeyMap['0'] = 35;
   charToKeyMap['.'] = 36; // 36
   //charToKeyMap[''] = ;
@@ -86,50 +86,92 @@ int getKeyIndex(char c) {
   return charToKeyMap[(int) upperChar];
 }
 
+// Get angle for pinion servo given key index
+int getPinionAngle(int keyIndex) {
+  // Assume center for now
+  // key 13 -> 180deg
+  // key 35 -> 0deg
+  return map(keyIndex, 13, 35, 0, 180);
+}
+
+// Convert from 0 - 270deg range to 0 - 180deg
+int convertPinionAngleToRange(int initAngle) {
+  return map(initAngle, 0, 270, 0, 180);
+}
+
 // Create servo objects
 // twelve servos max
 Servo pinionServo;
 Servo leftKeyServo;
-Servo centerKeyServo;
+Servo centerFinger;
 Servo rightKeyServo;
 
-String buff = "BYTR";
-int pos = 0;    // variable to store the servo position
+//String buff = "loin***";
+String buff = "loin*oil*bit*hull*guy";
+int pinionPos = 0;    // current pinion servo position
+const int pinionDelay = 20; // delay for incremental pinion movement 
+int centerFingerPos = 45;    // current pinion servo position
+const int fingerDelay = 5; // delay for incremental pinion movement 
 
 void setup() {
   Serial.begin(9600);
 
   pinionServo.attach(9);
-  centerKeyServo.attach(10);
+  centerFinger.attach(10);
+
+  pinionServo.write(pinionPos);
+  centerFinger.write(centerFingerPos);
 
   initKeyMap();
+  Serial.println(buff);
 }
 
 void loop() {
-  centerKeyServo.write(45);
-
-  const int startPos = 0;
-  const int endPosAngle = 180;
-  const int endPos = map(endPosAngle, 0, 270, 0, 180);
-  const int del = 20;
-
-
-  pinionServo.write(endPos);
-
-  for (pos = startPos; pos <= endPos; pos += 1) {
-    // in steps of 1 degree
-    //pinionServo.write(pos); 
-    delay(del); 
-  }
-  delay(1500);
-  for (pos = endPos; pos >= startPos; pos -= 1) { 
-    //pinionServo.write(pos);  
-    delay(del); 
-  }
-  delay(1500);
-
+  Serial.println(buff);
   for (int i = 0; i < buff.length(); i++) {
-    int keyIndex = getKeyIndex(buff[i]);
+    // Calculate key index and pinion angle based on char
+    char c = buff[i];
+    int keyIndex = getKeyIndex(c);
+    int pinionAngle = getPinionAngle(keyIndex);
+    Serial.print(c);
+    Serial.print(": ");
     Serial.println(keyIndex);
+
+    // Move pinion
+    int nextPinionPos = convertPinionAngleToRange(pinionAngle);
+    while (pinionPos != nextPinionPos) {
+      // in steps of 1 degree
+      if (pinionPos > nextPinionPos) {
+        // Decrement if larger
+        pinionPos--;
+      } else {
+        // Increment if smaller
+        pinionPos++;
+      }
+
+      // Update pinion servo
+      pinionServo.write(pinionPos);
+      delay(pinionDelay); 
+    }
+    delay(600);
+
+    // Move key trigger arm
+    while (centerFingerPos != 0) {
+      // in steps of 1 degree
+      centerFingerPos--;
+
+      // Update pinion servo
+      centerFinger.write(centerFingerPos);
+      delay(fingerDelay); 
+    }
+    while (centerFingerPos != 45) {
+      // in steps of 1 degree
+      centerFingerPos++;
+
+      // Update pinion servo
+      centerFinger.write(centerFingerPos);
+      delay(fingerDelay); 
+    }
+    delay(1500);
   }
 }
