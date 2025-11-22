@@ -8,7 +8,7 @@ int pos = 0;    // variable to store the servo position
 const int ledPin = 11;    // the number of the LED pin
 
 void setup() {
-  myservo.attach(10);  // attaches the servo on pin 9 to the servo object
+  myservo.attach(10);  // attach the servo
 
   // set initial LED state
   digitalWrite(ledPin, HIGH);
