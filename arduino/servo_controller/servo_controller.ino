@@ -87,11 +87,23 @@ int getKeyIndex(char c) {
 }
 
 // Get angle for pinion servo given key index
-int getPinionAngle(int keyIndex) {
-  // Assume center for now
-  // key 13 -> 180deg
-  // key 35 -> 0deg
-  return map(keyIndex, 13, 35, 180, 0);
+int getPinionAngle(int keyIndex, String fingerType) {
+  if (fingerType == "left") {
+    // Left finger
+    // key 0 -> 180deg
+    // key 12 -> ~90deg
+    return map(keyIndex, 0, 12, 180, 90);
+  } else if (fingerType == "right") {
+    // Right finger
+    // key 36 -> ~90
+    // key 43 -> 0deg
+    return map(keyIndex, 36, 43, 90, 0);
+  } else {
+    // Assume center finger
+    // key 13 -> 180deg
+    // key 35 -> 0deg
+    return map(keyIndex, 13, 35, 180, 0);
+  }
 }
 
 // Convert from 0 - 270deg range to 0 - 180deg
@@ -101,22 +113,28 @@ int convertPinionAngleToRange(int initAngle) {
 
 // Create servo objects
 // twelve servos max
-Servo pinionServo;
-Servo leftFinger;
-Servo centerFinger;
-Servo rightFinger;
+Servo pinionServo; // 3
+Servo returnFinger; // 5
+Servo spaceFinger; // 6
+Servo leftFinger; // 9
+Servo centerFinger; // 10
+Servo rightFinger; // 11
 
-String buff = "buy*our*furry*groin*jug**you*fool***oh*my*gout*loin**glub*glub***";
+//String buff = "buy*our*furry*groin*jug**you*fool";
+String buff = "rfvtgbyhnujmik,ol";
+//String buff = "buy*our*furry*groin*jug**you*fool";
+//String buff = "***oh*my*gout*loin**glub*glub***";
 //String buff = "big*oily*joint*gun";
-int pinionPos = convertPinionAngleToRange(0);    // current pinion servo position
+int pinionPos = convertPinionAngleToRange(180); // current pinion servo position
 const int pinionDelay = 10; // delay for incremental pinion movement 
-int centerFingerPos = 45;    // current pinion servo position
-int fingerStartPos = 45; // starting angle for all fingers
-int fingerEndPos = 0; // target angle for hitting key 
-const int fingerDelay = 3; // delay for incremental pinion movement 
+int leftFingerStartPos = 180; // starting angle for all fingers
+int leftFingerEndPos = 135; // target angle for hitting key 
+int centerFingerStartPos = 45; // starting angle for all fingers
+int centerFingerEndPos = 0; // target angle for hitting key 
+const int fingerDelay = 3; // delay for key trigger servos
 
 // Move given finger to trigger key
-void pressKey(Servo finger) {
+void pressKey(Servo finger, int fingerStartPos, int fingerEndPos) {
   // Keep track of current finger angle
   int currPos = fingerStartPos;
 
@@ -144,11 +162,19 @@ void pressKey(Servo finger) {
 void setup() {
   Serial.begin(9600);
 
-  pinionServo.attach(9);
+  pinionServo.attach(3); // TODO: update wiring on board
+  returnFinger.attach(5);
+  spaceFinger.attach(6);
+  leftFinger.attach(9);
   centerFinger.attach(10);
+  rightFinger.attach(11);
 
   pinionServo.write(pinionPos);
-  centerFinger.write(fingerStartPos);
+  returnFinger.write(leftFingerStartPos);
+  spaceFinger.write(centerFingerStartPos);
+  leftFinger.write(leftFingerStartPos);
+  centerFinger.write(centerFingerStartPos);
+  rightFinger.write(centerFingerStartPos);
 
   initKeyMap();
   Serial.println(buff);
@@ -161,32 +187,45 @@ void loop() {
   for (int i = 0; i < buff.length(); i++) {
     // Calculate key index and pinion angle based on char
     char c = buff[i];
-    int keyIndex = getKeyIndex(c);
-    int pinionAngle = getPinionAngle(keyIndex);
-    Serial.print(c);
-    Serial.print(": ");
-    Serial.println(keyIndex);
+    if (c == '\n') {
+      // Trigger return carriage 
+      pressKey(returnFinger, leftFingerStartPos, leftFingerStartPos);
+      delay(1500);
+    } else if (c == ' ') {
+      // Trigger space key 
+      pressKey(spaceFinger, centerFingerStartPos, centerFingerEndPos);
+      delay(1500);
+    } else {
+      /* Trigger key on keyboard */
 
-    // Move pinion
-    int nextPinionPos = convertPinionAngleToRange(pinionAngle);
-    while (pinionPos != nextPinionPos) {
-      // in steps of 1 degree
-      if (pinionPos > nextPinionPos) {
-        // Decrement if larger
-        pinionPos--;
-      } else {
-        // Increment if smaller
-        pinionPos++;
+      // Get pinion angle from char
+      int keyIndex = getKeyIndex(c);
+      int pinionAngle = getPinionAngle(keyIndex);
+      Serial.print(c);
+      Serial.print(": ");
+      Serial.println(keyIndex);
+
+      // Move pinion
+      int nextPinionPos = convertPinionAngleToRange(pinionAngle);
+      while (pinionPos != nextPinionPos) {
+        // in steps of 1 degree
+        if (pinionPos > nextPinionPos) {
+          // Decrement if larger
+          pinionPos--;
+        } else {
+          // Increment if smaller
+          pinionPos++;
+        }
+
+        // Update pinion servo
+        pinionServo.write(pinionPos);
+        delay(pinionDelay); 
       }
+      delay(500);
 
-      // Update pinion servo
-      pinionServo.write(pinionPos);
-      delay(pinionDelay); 
+      // Trigger finger servo to press key
+      pressKey(centerFinger, centerFingerStartPos, centerFingerEndPos);
+      delay(1500);
     }
-    delay(500);
-
-    // Trigger finger servo to press key
-    pressKey(centerFinger);
-    delay(500);
   }
 }
